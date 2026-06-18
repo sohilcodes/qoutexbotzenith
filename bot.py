@@ -1,6 +1,6 @@
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -15,7 +15,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 TRADE_AMOUNT = float(os.getenv("DEFAULT_TRADE_AMOUNT", "1"))
-CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))
+CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "20"))
 
 ASSETS = [
     {"yf": "EURUSD=X", "qx": "EURUSD"},
@@ -28,10 +28,16 @@ def now_ist():
     return datetime.now(IST)
 
 
+def next_minute_time(dt=None):
+    if dt is None:
+        dt = now_ist()
+    return (dt.replace(second=0, microsecond=0) + timedelta(minutes=1))
+
+
 def fmt_time(dt=None):
     if dt is None:
         dt = now_ist()
-    return dt.strftime("%d-%m-%Y %I:%M:%S %p") + " (UTC+05:30)"
+    return dt.strftime("%d-%m-%Y %H:%M:%S") + " (UTC+05:30)"
 
 
 def get_market_data(symbol):
@@ -97,11 +103,14 @@ def generate_signal(yf_symbol, qx_symbol):
         call = float(e9.iloc[-1]) > float(e21.iloc[-1]) and r < 70
         put = float(e9.iloc[-1]) < float(e21.iloc[-1]) and r > 30
 
+        entry_time = next_minute_time()
+        expiry_time = entry_time + timedelta(seconds=60)
+
         print(
             f"[{fmt_time()}] {qx_symbol} | candles={len(close)} | "
             f"price={last_price:.5f} | ema9={float(e9.iloc[-1]):.5f} | "
             f"ema21={float(e21.iloc[-1]):.5f} | rsi={r:.2f} | "
-            f"call={call} | put={put}"
+            f"call={call} | put={put} | entry={fmt_time(entry_time)}"
         )
 
         if not call and not put:
@@ -113,7 +122,9 @@ def generate_signal(yf_symbol, qx_symbol):
             "price": round(last_price, 5),
             "duration": 60,
             "rsi": round(r, 2),
-            "time": now_ist()
+            "signal_time": now_ist(),
+            "entry_time": entry_time,
+            "expiry_time": expiry_time
         }
 
     except Exception as e:
@@ -152,7 +163,10 @@ async def send_signal(signal):
 📍 Direction: {signal["direction"]}
 📉 RSI: {signal["rsi"]}
 💰 Amount: ${TRADE_AMOUNT}
-🕒 Time: {fmt_time(signal["time"])}
+
+🕒 Signal Time: {fmt_time(signal["signal_time"])}
+⏭ Entry Time: {fmt_time(signal["entry_time"])}
+⌛ Expiry Time: {fmt_time(signal["expiry_time"])}
 
 💻 Coded By @Sohilcodes
 """
@@ -160,10 +174,23 @@ async def send_signal(signal):
 
 
 async def execute_trade(signal):
-    print(f'[{fmt_time()}] TRADE {signal["asset"]} {signal["direction"]} @ {signal["price"]}')
+    print(
+        f'[{fmt_time()}] TRADE {signal["asset"]} '
+        f'{signal["direction"]} @ {signal["price"]} '
+        f'ENTRY {fmt_time(signal["entry_time"])}'
+    )
+
+
+async def wait_until_entry(entry_time):
+    while True:
+        remaining = (entry_time - now_ist()).total_seconds()
+        if remaining <= 0:
+            break
+        await asyncio.sleep(min(remaining, 1))
 
 
 async def check_result(signal):
+    await wait_until_entry(signal["entry_time"])
     await asyncio.sleep(signal["duration"])
 
     yf_symbol = next(
@@ -191,7 +218,9 @@ async def check_result(signal):
 
 💹 Asset: {signal["asset"]}
 📍 Direction: {signal["direction"]}
-🕒 Time: {fmt_time()}
+
+⏭ Entry Time: {fmt_time(signal["entry_time"])}
+⌛ Result Time: {fmt_time()}
 
 Entry: {entry}
 Exit: {exit_price}
@@ -204,6 +233,8 @@ Exit: {exit_price}
 async def run_bot():
     print(f"BOT STARTED AT {fmt_time()}")
 
+    last_sent_key = None
+
     while True:
         try:
             print(f"[{fmt_time()}] CHECKING MARKET...")
@@ -213,7 +244,19 @@ async def run_bot():
                 signal = generate_signal(asset["yf"], asset["qx"])
 
                 if signal:
+                    signal_key = (
+                        signal["asset"],
+                        signal["direction"],
+                        signal["entry_time"].strftime("%Y-%m-%d %H:%M")
+                    )
+
+                    if signal_key == last_sent_key:
+                        print(f"[{fmt_time()}] DUPLICATE SIGNAL SKIPPED: {signal_key}")
+                        continue
+
+                    last_sent_key = signal_key
                     found = True
+
                     print(f"[{fmt_time()}] SIGNAL FOUND: {signal}")
                     await send_signal(signal)
                     await execute_trade(signal)
