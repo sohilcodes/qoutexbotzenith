@@ -31,7 +31,7 @@ def now_ist():
 def next_minute_time(dt=None):
     if dt is None:
         dt = now_ist()
-    return (dt.replace(second=0, microsecond=0) + timedelta(minutes=1))
+    return dt.replace(second=0, microsecond=0) + timedelta(minutes=1)
 
 
 def fmt_time(dt=None):
@@ -150,6 +150,7 @@ async def telegram(text):
                 }
             )
             print("TG STATUS:", response.status_code)
+            print("TG RESPONSE:", response.text)
 
     except Exception as e:
         print("TG ERROR:", e)
@@ -157,9 +158,9 @@ async def telegram(text):
 
 async def send_signal(signal):
     msg = f"""
-🚀 <b>SIGNAL</b>
+<tg-emoji emoji-id="5350377396421797635">⭐️</tg-emoji> <b>SIGNAL</b>
 
-💹 Asset: {signal["asset"]}
+<tg-emoji emoji-id="6217220428046273989">😬</tg-emoji> Asset: {signal["asset"]}
 📍 Direction: {signal["direction"]}
 📉 RSI: {signal["rsi"]}
 💰 Amount: ${TRADE_AMOUNT}
@@ -214,9 +215,9 @@ async def check_result(signal):
         win = exit_price < entry
 
     msg = f"""
-🎯 <b>RESULT</b>
+<tg-emoji emoji-id="5350377396421797635">⭐️</tg-emoji> <b>RESULT</b>
 
-💹 Asset: {signal["asset"]}
+<tg-emoji emoji-id="6217220428046273989">😬</tg-emoji> Asset: {signal["asset"]}
 📍 Direction: {signal["direction"]}
 
 ⏭ Entry Time: {fmt_time(signal["entry_time"])}
@@ -232,6 +233,12 @@ Exit: {exit_price}
 
 async def run_bot():
     print(f"BOT STARTED AT {fmt_time()}")
+
+    await telegram("""
+<tg-emoji emoji-id="5350377396421797635">⭐️</tg-emoji> Premium Star Test
+
+<tg-emoji emoji-id="6217220428046273989">😬</tg-emoji> Premium Face Test
+""")
 
     last_sent_key = None
 
