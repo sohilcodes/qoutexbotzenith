@@ -19,7 +19,7 @@ CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))
 
 ASSETS = [
     {"yf": "EURUSD=X", "qx": "EURUSD"},
-    {"yf": "GBPUSD=X", "qx": "EURUSD"},
+    {"yf": "GBPUSD=X", "qx": "GBPUSD"},
     {"yf": "USDJPY=X", "qx": "USDJPY"},
 ]
 
@@ -31,7 +31,7 @@ def now_ist():
 def fmt_time(dt=None):
     if dt is None:
         dt = now_ist()
-    return dt.strftime("%d-%m-%Y %I:%M:%S %p IST")
+    return dt.strftime("%d-%m-%Y %I:%M:%S %p") + " (UTC+05:30)"
 
 
 def get_market_data(symbol):
@@ -94,7 +94,6 @@ def generate_signal(yf_symbol, qx_symbol):
         r = float(rsi(close).iloc[-1])
         last_price = float(close.iloc[-1])
 
-        # Frequent signal logic for testing/live use
         call = float(e9.iloc[-1]) > float(e21.iloc[-1]) and r < 70
         put = float(e9.iloc[-1]) < float(e21.iloc[-1]) and r > 30
 
