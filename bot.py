@@ -201,7 +201,7 @@ async def send_signal(signal):
 ⏭ Entry Time: {fmt_time(signal["entry_time"])}
 ⌛ Expiry Time: {fmt_time(signal["expiry_time"])}
 
-💻 Coded By @nextgentraderr9
+💻 Coded By @sohilcodes Coder 👨‍💻
 """
     await telegram(msg)
 
