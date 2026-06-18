@@ -17,6 +17,10 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TRADE_AMOUNT = float(os.getenv("DEFAULT_TRADE_AMOUNT", "1"))
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "20"))
 
+CALL_STICKER_ID = "CAACAgUAAxkBAAFMxWFqM75LzRTssjIXdxqZ-tCMCDq3WgACxQcAAvWDSFT6gRCK1sIumTwE"
+PUT_STICKER_ID = "CAACAgUAAxkBAAFMxWNqM75NJ3bf3-7hXrnW_11NX_gkZAACOwUAAn8wSFT9zaN4MhyzmDwE"
+WIN_STICKER_ID = "CAACAgUAAxkBAAFMxWVqM75aBY0aMEvKnMeUVJz_ax9mRwACPBcAAtAfMFUIwe5x0TxlWjwE"
+
 ASSETS = [
     {"yf": "EURUSD=X", "qx": "EURUSD"},
     {"yf": "GBPUSD=X", "qx": "GBPUSD"},
@@ -156,7 +160,35 @@ async def telegram(text):
         print("TG ERROR:", e)
 
 
+async def send_sticker(sticker_id):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("STICKER SKIPPED: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendSticker"
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(
+                url,
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "sticker": sticker_id
+                }
+            )
+            print("STICKER STATUS:", response.status_code)
+            print("STICKER RESPONSE:", response.text)
+
+    except Exception as e:
+        print("STICKER ERROR:", e)
+
+
 async def send_signal(signal):
+    if signal["direction"] == "CALL":
+        await send_sticker(CALL_STICKER_ID)
+    else:
+        await send_sticker(PUT_STICKER_ID)
+
     msg = f"""
 <tg-emoji emoji-id="5350377396421797635">⭐️</tg-emoji> <b>SIGNAL</b>
 
@@ -214,6 +246,9 @@ async def check_result(signal):
     else:
         win = exit_price < entry
 
+    if win:
+        await send_sticker(WIN_STICKER_ID)
+
     msg = f"""
 <tg-emoji emoji-id="5350377396421797635">⭐️</tg-emoji> <b>RESULT</b>
 
@@ -234,11 +269,7 @@ Exit: {exit_price}
 async def run_bot():
     print(f"BOT STARTED AT {fmt_time()}")
 
-    await telegram("""
-<tg-emoji emoji-id="5350377396421797635">⭐️</tg-emoji> Premium Star Test
-
-<tg-emoji emoji-id="6217220428046273989">😬</tg-emoji> Premium Face Test
-""")
+    await telegram("✅ Bot live with direction/result stickers")
 
     last_sent_key = None
 
